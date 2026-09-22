@@ -139,6 +139,7 @@ function mapApiTripToTrip(item: any, defaultFrom?: any, defaultTo?: any): Trip {
     : [];
 
   return {
+    _id: item._id,
     id: item._id,
     companyId:
       typeof item.company === "object" && item.company?._id
@@ -333,9 +334,10 @@ function SearchPage() {
     );
 
   const handleSelectTrip = (t: Trip) => {
+    const tripIdentifier = t._id || t.id || "";
     if (!isRoundTrip) {
       saveDraft({
-        tripId: t.id,
+        tripId: tripIdentifier,
         date: date ?? new Date().toISOString().slice(0, 10),
         selectedSeats: [],
         trip: t,
@@ -347,7 +349,7 @@ function SearchPage() {
       nav({
         to: "/seats",
         search: {
-          tripId: t.id,
+          tripId: tripIdentifier,
           date: date ?? "",
           from: getGeoIdOrName(from) || (typeof from === "string" ? from : undefined),
           to: getGeoIdOrName(to) || (typeof to === "string" ? to : undefined),
@@ -388,12 +390,12 @@ function SearchPage() {
     }
 
     saveDraft({
-      tripId: selectedOutbound.id,
+      tripId: selectedOutbound._id || selectedOutbound.id || "",
       date: date ?? new Date().toISOString().slice(0, 10),
       selectedSeats: [],
       trip: selectedOutbound,
       isRoundTrip: true,
-      returnTripId: selectedReturn.id,
+      returnTripId: selectedReturn._id || selectedReturn.id || "",
       returnDate: returnDate ?? date ?? "",
       returnSelectedSeats: [],
       returnTrip: selectedReturn,
@@ -667,15 +669,16 @@ function SearchPage() {
           )}
 
           {filtered.map((t) => {
+            const tripKey = t._id || t.id || "";
             const isCurrentlySelected = isRoundTrip
               ? activeTab === "outbound"
-                ? selectedOutbound?.id === t.id
-                : selectedReturn?.id === t.id
+                ? (selectedOutbound?._id || selectedOutbound?.id) === tripKey
+                : (selectedReturn?._id || selectedReturn?.id) === tripKey
               : false;
 
             return (
               <Card
-                key={t.id}
+                key={tripKey}
                 className={`overflow-hidden p-0 card-hover transition-all ${
                   isCurrentlySelected
                     ? "border-2 border-primary bg-primary/5"

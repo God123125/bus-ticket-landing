@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import { apiClient } from "@/api/client";
@@ -99,65 +100,9 @@ const fallbackSchedules = [
   },
 ];
 
-const features = [
-  {
-    icon: Shield,
-    title: "Safe & Secure",
-    desc: "100% verified operators, insured trips, and encrypted payments.",
-    badge: "Verified",
-  },
-  {
-    icon: Wallet,
-    title: "Best Price Guarantee",
-    desc: "Direct operator rates with zero hidden booking fees or markups.",
-    badge: "Best Value",
-  },
-  {
-    icon: Zap,
-    title: "Instant Digital Pass",
-    desc: "Instant QR ticket sent straight to your phone with live updates.",
-    badge: "Fast & Easy",
-  },
-  {
-    icon: Clock,
-    title: "24/7 Dedicated Support",
-    desc: "Friendly travel experts standing by to assist your journey anytime.",
-    badge: "Always Here",
-  },
-];
-
-const stats = [
-  { value: "500K+", label: "Happy Travelers", icon: Users },
-  { value: "120+", label: "Daily Departures", icon: TrendingUp },
-  { value: "25+", label: "Provincial Routes", icon: Compass },
-  { value: "99.8%", label: "On-Time Rate", icon: Award },
-];
-
-const reviews = [
-  {
-    name: "Sopheak L.",
-    role: "Frequent Traveler",
-    text: "Booked a night VIP sleeper in 2 minutes. The bus arrived on the exact minute and the ride was super smooth!",
-    rating: 5,
-    city: "Phnom Penh → Siem Reap",
-  },
-  {
-    name: "Marie D.",
-    role: "Backpacker & Explorer",
-    text: "Loved the interactive seat selection map! I picked my favorite window seat with no fuss. Highly recommend GreenBus.",
-    rating: 5,
-    city: "Siem Reap → Kampot",
-  },
-  {
-    name: "Alex T.",
-    role: "Business Traveler",
-    text: "Clean interface, competitive prices, and crystal clear ticket receipts. Hands down the best bus service app in Cambodia.",
-    rating: 5,
-    city: "Phnom Penh → Sihanoukville",
-  },
-];
-
 function Index() {
+  const { t, i18n } = useTranslation();
+  const isKhmer = i18n.language?.startsWith("km");
   const nav = useNavigate({ from: Route.fullPath });
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState("Phnom Penh");
@@ -165,9 +110,67 @@ function Index() {
   const [date, setDate] = useState(today);
 
   const [schedules, setSchedules] = useState<IScheduleLandingItem[]>([]);
-  const [cities, setCities] = useState<{ label: string; value: string }[]>([]);
+  const [rawGeos, setRawGeos] = useState<any[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const features = [
+    {
+      icon: Shield,
+      title: t("whyChoose.safeTitle"),
+      desc: t("whyChoose.safeDesc"),
+      badge: t("whyChoose.safeBadge"),
+    },
+    {
+      icon: Wallet,
+      title: t("whyChoose.priceTitle"),
+      desc: t("whyChoose.priceDesc"),
+      badge: t("whyChoose.priceBadge"),
+    },
+    {
+      icon: Zap,
+      title: t("whyChoose.instantTitle"),
+      desc: t("whyChoose.instantDesc"),
+      badge: t("whyChoose.instantBadge"),
+    },
+    {
+      icon: Clock,
+      title: t("whyChoose.supportTitle"),
+      desc: t("whyChoose.supportDesc"),
+      badge: t("whyChoose.supportBadge"),
+    },
+  ];
+
+  const stats = [
+    { value: "500K+", label: t("stats.happyTravelers"), icon: Users },
+    { value: "120+", label: t("stats.dailyDepartures"), icon: TrendingUp },
+    { value: "25+", label: t("stats.provincialRoutes"), icon: Compass },
+    { value: "99.8%", label: t("stats.onTimeRate"), icon: Award },
+  ];
+
+  const reviews = [
+    {
+      name: t("reviews.r1.name"),
+      role: t("reviews.r1.role"),
+      text: t("reviews.r1.text"),
+      rating: 5,
+      city: t("reviews.r1.city"),
+    },
+    {
+      name: t("reviews.r2.name"),
+      role: t("reviews.r2.role"),
+      text: t("reviews.r2.text"),
+      rating: 5,
+      city: t("reviews.r2.city"),
+    },
+    {
+      name: t("reviews.r3.name"),
+      role: t("reviews.r3.role"),
+      text: t("reviews.r3.text"),
+      rating: 5,
+      city: t("reviews.r3.city"),
+    },
+  ];
 
   useEffect(() => {
     const handleScroll = () => {
@@ -209,11 +212,17 @@ function Index() {
             ? res.data.list
             : [];
         if (list.length > 0) {
+          setRawGeos(list);
           const mapped = list.map((g: any) => ({
-            label: g.name_en ? `${g.name_en} (${g.name_kh})` : g.name_kh,
+            label: isKhmer
+              ? g.name_kh
+                ? `${g.name_kh} (${g.name_en || ""})`
+                : g.name_en
+              : g.name_en
+                ? `${g.name_en} (${g.name_kh || ""})`
+                : g.name_kh,
             value: g._id,
           }));
-          setCities(mapped);
           setFrom((prev) =>
             mapped.some((c: any) => c.value === prev) ? prev : mapped[0].value,
           );
@@ -227,17 +236,17 @@ function Index() {
               : prev,
           );
         } else {
-          setCities(CITIES.map((c) => ({ label: c, value: c })));
+          setRawGeos([]);
         }
       })
       .catch((err) => {
         console.error("Failed to load geographics:", err);
-        setCities(CITIES.map((c) => ({ label: c, value: c })));
+        setRawGeos([]);
       })
       .finally(() => {
         setLoadingCities(false);
       });
-  }, []);
+  }, [isKhmer]);
 
   useEffect(() => {
     apiClient
@@ -261,7 +270,18 @@ function Index() {
   const [returnDate, setReturnDate] = useState("");
 
   const cityOptions =
-    cities.length > 0 ? cities : CITIES.map((c) => ({ label: c, value: c }));
+    rawGeos.length > 0
+      ? rawGeos.map((g: any) => ({
+          label: isKhmer
+            ? g.name_kh
+              ? `${g.name_kh} (${g.name_en || ""})`
+              : g.name_en
+            : g.name_en
+              ? `${g.name_en} (${g.name_kh || ""})`
+              : g.name_kh,
+          value: g._id,
+        }))
+      : CITIES.map((c) => ({ label: c, value: c }));
 
   const swapLocations = () => {
     const temp = from;
@@ -305,18 +325,18 @@ function Index() {
             >
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Cambodia&apos;s #1 Modern Bus Ticketing Network</span>
+              <span>{t("hero.badge")}</span>
             </div>
 
             <h1
               data-aos="fade-up"
               data-aos-delay="100"
               data-aos-duration="800"
-              className="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl"
+              className="mt-6 text-4xl font-black tracking-tight leading-tight sm:leading-snug md:leading-normal text-white sm:text-5xl md:text-6xl lg:text-5xl"
             >
-              Travel Cambodia with{" "}
+              {t("hero.titlePrefix")} <br />
               <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-green-400 bg-clip-text text-transparent drop-shadow-sm">
-                Confidence & Comfort
+                {t("hero.titleHighlight")}
               </span>
             </h1>
             <p
@@ -325,9 +345,7 @@ function Index() {
               data-aos-duration="800"
               className="mt-5 text-base sm:text-lg text-emerald-50/85 max-w-2xl mx-auto font-light leading-relaxed"
             >
-              Experience seamless intercity journeys. Browse hundreds of
-              scheduled routes, select your preferred seat in real-time, and
-              reserve within seconds.
+              {t("hero.description")}
             </p>
           </div>
 
@@ -356,7 +374,7 @@ function Index() {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    One-way Trip
+                    {t("hero.oneWay")}
                   </button>
                   <button
                     type="button"
@@ -370,13 +388,13 @@ function Index() {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Round-trip
+                    {t("hero.roundTrip")}
                   </button>
                 </div>
 
                 <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <span>Instant E-Ticket Confirmation</span>
+                  <span>{t("hero.instantPassBadge")}</span>
                 </div>
               </div>
 
@@ -393,7 +411,7 @@ function Index() {
                   icon={
                     <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   }
-                  label="Departure City"
+                  label={t("hero.departureCity")}
                   value={from}
                   onChange={setFrom}
                   options={cityOptions}
@@ -417,7 +435,7 @@ function Index() {
                   icon={
                     <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   }
-                  label="Destination City"
+                  label={t("hero.destinationCity")}
                   value={to}
                   onChange={setTo}
                   options={cityOptions.filter(
@@ -429,7 +447,7 @@ function Index() {
                 {/* Departure Date */}
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Departure Date
+                    {t("hero.departureDate")}
                   </label>
                   <div className="relative">
                     <Calendar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600 dark:text-emerald-400" />
@@ -451,7 +469,7 @@ function Index() {
                 {tripType === "roundtrip" && (
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Return Date
+                      {t("hero.returnDate")}
                     </label>
                     <div className="relative">
                       <Calendar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600 dark:text-emerald-400" />
@@ -485,7 +503,7 @@ function Index() {
                     }
                   >
                     <Search className="h-4 w-4 stroke-[2.5]" />
-                    <span>Search Buses</span>
+                    <span>{t("hero.searchBuses")}</span>
                   </Button>
                 </div>
               </div>
@@ -538,18 +556,17 @@ function Index() {
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-bold text-emerald-300 border border-emerald-400/30">
-                <Sparkles className="h-3 w-3" /> Exclusive Online Promo
+                <Sparkles className="h-3 w-3" /> {t("promo.badge")}
               </div>
               <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                Save 15% on All Night Sleeper Buses
+                {t("promo.title")}
               </h3>
               <p className="text-sm md:text-base text-emerald-100/80 max-w-xl">
-                Enjoy comfortable air-conditioned berths with blankets, onboard
-                Wi-Fi, and priority boarding. Use code{" "}
+                {t("promo.description")}{" "}
                 <span className="font-mono font-bold bg-white/20 px-2 py-0.5 rounded text-white">
-                  GREENNIGHT
+                  {t("promo.code")}
                 </span>{" "}
-                at checkout.
+                {t("promo.suffix")}
               </p>
             </div>
             <Button
@@ -567,7 +584,8 @@ function Index() {
                 });
               }}
             >
-              Book Night Bus <ArrowRight className="ml-1.5 h-4 w-4" />
+              {t("promo.bookNightBus")}{" "}
+              <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -581,25 +599,15 @@ function Index() {
         >
           <div>
             <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary mb-2">
-              <Calendar className="h-3.5 w-3.5" /> Daily Timetable
+              <Calendar className="h-3.5 w-3.5" /> {t("schedules.timetable")}
             </div>
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-              Popular Schedules
+              {t("schedules.title")}
             </h2>
             <p className="mt-1 text-sm sm:text-base text-muted-foreground">
-              Explore scheduled departure times across Cambodia&apos;s most
-              traveled routes
+              {t("schedules.subtitle")}
             </p>
           </div>
-
-          {/* Informative indicator badge explaining this is live schedule display */}
-          {/* <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/70 px-4 py-1.5 text-xs font-medium text-muted-foreground w-fit">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span>Real-time departures display</span>
-          </div> */}
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -628,12 +636,16 @@ function Index() {
                   background: CARD_GRADIENTS[idx % CARD_GRADIENTS.length],
                 };
 
-            const fromName = s.from?.name_en
-              ? `${s.from.name_en} (${s.from.name_kh})`
-              : s.from?.name_kh || "Departure";
-            const toName = s.to?.name_en
-              ? `${s.to.name_en} (${s.to.name_kh})`
-              : s.to?.name_kh || "Destination";
+            const fromName = isKhmer
+              ? s.from?.name_kh || s.from?.name_en || "ចេញដំណើរ"
+              : s.from?.name_en
+                ? `${s.from.name_en} (${s.from.name_kh || ""})`
+                : s.from?.name_kh || "Departure";
+            const toName = isKhmer
+              ? s.to?.name_kh || s.to?.name_en || "គោលដៅ"
+              : s.to?.name_en
+                ? `${s.to.name_en} (${s.to.name_kh || ""})`
+                : s.to?.name_kh || "Destination";
 
             return (
               <div
@@ -678,16 +690,16 @@ function Index() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="font-medium text-foreground/80">
-                        Schedule Type
+                        {t("schedules.type")}
                       </span>
                       <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 font-semibold text-[11px]">
-                        Daily Fixed
+                        {t("schedules.dailyFixed")}
                       </span>
                     </div>
 
                     {arrStationName && (
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Arrival Terminal</span>
+                        <span>{t("schedules.arrivalTerminal")}</span>
                         <span className="font-medium text-foreground/80 truncate max-w-[140px]">
                           {arrStationName}
                         </span>
@@ -698,11 +710,11 @@ function Index() {
                   {/* Informative footer state (Display only, non-clickable) */}
                   <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs">
                     <span className="inline-flex items-center gap-1.5 font-medium text-muted-foreground">
-                      <Bus className="h-3.5 w-3.5 text-primary" /> AC Express
-                      Bus
+                      <Bus className="h-3.5 w-3.5 text-primary" />{" "}
+                      {t("schedules.acExpress")}
                     </span>
                     <span className="font-semibold text-primary/80 bg-primary/10 px-2 py-0.5 rounded-md">
-                      Regular Trip
+                      {t("schedules.regularTrip")}
                     </span>
                   </div>
                 </div>
@@ -717,8 +729,8 @@ function Index() {
         <div className="mx-auto max-w-7xl px-4">
           <div data-aos="fade-up">
             <SectionHeader
-              title="Why Travelers Choose GreenBus"
-              subtitle="The modern standard for stress-free bus travel across Cambodia"
+              title={t("whyChoose.title")}
+              subtitle={t("whyChoose.subtitle")}
             />
           </div>
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -754,8 +766,8 @@ function Index() {
       <section className="mx-auto max-w-7xl px-4 py-20 overflow-hidden">
         <div data-aos="fade-up">
           <SectionHeader
-            title="Loved by 500,000+ Travelers"
-            subtitle="Real experiences from passengers exploring the Kingdom of Wonder"
+            title={t("reviews.title")}
+            subtitle={t("reviews.subtitle")}
           />
         </div>
         <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -775,7 +787,7 @@ function Index() {
                     ))}
                   </div>
                   <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                    Verified Rider
+                    {t("reviews.verifiedRider")}
                   </span>
                 </div>
                 <p className="text-sm sm:text-base text-foreground/90 italic leading-relaxed">
@@ -805,11 +817,10 @@ function Index() {
         >
           <div className="relative z-10 max-w-2xl mx-auto space-y-4">
             <h2 className="text-3xl md:text-4xl font-black tracking-tight">
-              Ready for Your Next Cambodian Adventure?
+              {t("cta.title")}
             </h2>
             <p className="text-emerald-100/80 text-sm md:text-base">
-              Book your tickets in advance to secure the best seats and lowest
-              fares today.
+              {t("cta.description")}
             </p>
             <div className="pt-2">
               <Button
@@ -819,7 +830,7 @@ function Index() {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
               >
-                Find Your Bus <ArrowRight className="ml-2 h-4 w-4" />
+                {t("cta.button")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>

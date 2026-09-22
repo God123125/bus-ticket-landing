@@ -7,8 +7,11 @@ import {
   Phone,
   Share2,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function SiteFooter() {
+  const { t } = useTranslation();
+
   return (
     <footer className="mt-20 border-t border-border bg-secondary/40">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 md:grid-cols-4">
@@ -20,20 +23,20 @@ export function SiteFooter() {
             <span className="text-lg font-bold">GreenBus</span>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            Fast, safe and reliable bus tickets across the region.
+            {t("footer.tagline")}
           </p>
         </div>
         <div>
-          <h4 className="mb-3 text-sm font-semibold">Company</h4>
+          <h4 className="mb-3 text-sm font-semibold">{t("footer.company")}</h4>
           <ul className="space-y-2 text-sm text-muted-foreground">
-            <li>About</li>
-            <li>Careers</li>
-            <li>Press</li>
-            <li>Blog</li>
+            <li>{t("footer.about")}</li>
+            <li>{t("footer.careers")}</li>
+            <li>{t("footer.press")}</li>
+            <li>{t("footer.blog")}</li>
           </ul>
         </div>
         <div>
-          <h4 className="mb-3 text-sm font-semibold">Contact</h4>
+          <h4 className="mb-3 text-sm font-semibold">{t("footer.contact")}</h4>
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-center gap-2">
               <Phone className="h-4 w-4" />
@@ -45,12 +48,12 @@ export function SiteFooter() {
             </li>
             <li className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              Phnom Penh, Cambodia
+              {t("footer.cityCountry")}
             </li>
           </ul>
         </div>
         <div>
-          <h4 className="mb-3 text-sm font-semibold">Follow</h4>
+          <h4 className="mb-3 text-sm font-semibold">{t("footer.follow")}</h4>
           <div className="flex gap-3">
             {[Globe, MessageCircle, Share2].map((Icon, i) => (
               <div
@@ -64,7 +67,7 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-border py-4 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} GreenBus. All rights reserved.
+        © {new Date().getFullYear()} {t("footer.rights")}
       </div>
     </footer>
   );

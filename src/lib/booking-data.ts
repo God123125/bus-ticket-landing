@@ -2,6 +2,7 @@ export type BusType = "VIP 2-2" | "VIP 2-1" | "Sleeper";
 
 export interface Trip {
   _id: string;
+  id?: string;
   companyId?: string;
   company: string;
   companyImage?: string;
