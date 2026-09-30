@@ -1,36 +1,55 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
   Bus,
   Calendar,
   Download,
   Eye,
+  ImageIcon,
+  Loader2,
   MapPin,
+  MessageSquarePlus,
+  Star,
   Ticket,
-  XCircle,
+  UploadCloud,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { getBookings, updateBooking, type Booking } from "@/lib/booking-data";
+import { apiClient } from "@/api/client";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/booking")({ component: BookingsPage });
 
-function BookingsPage() {
+export function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<Booking | null>(null);
+
+  // Feedback modal state
+  const [feedbackBooking, setFeedbackBooking] = useState<Booking | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string>("");
+  const [feedbackFile, setFeedbackFile] = useState<File | null>(null);
+  const [feedbackPreview, setFeedbackPreview] = useState<string | null>(null);
+  const [submittingFeedback, setSubmittingFeedback] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -40,10 +59,109 @@ function BookingsPage() {
     return () => clearTimeout(t);
   }, []);
 
-  const cancel = (ref: string) => {
-    updateBooking(ref, { status: "Cancelled" });
-    setBookings(getBookings());
-    toast.success("Booking cancelled");
+  const openFeedbackDialog = (booking: Booking) => {
+    setFeedbackBooking(booking);
+    setFeedbackRating(5);
+    setHoverRating(null);
+    setFeedbackMessage("");
+    setFeedbackFile(null);
+    setFeedbackPreview(null);
+  };
+
+  const closeFeedbackDialog = () => {
+    if (submittingFeedback) return;
+    setFeedbackBooking(null);
+    setFeedbackFile(null);
+    setFeedbackPreview(null);
+    setFeedbackMessage("");
+    setFeedbackRating(5);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please upload an image file");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size must be less than 5MB");
+        return;
+      }
+      setFeedbackFile(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFeedbackPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFeedbackFile(null);
+    setFeedbackPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const submitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackBooking) return;
+
+    if (!feedbackMessage.trim()) {
+      toast.error("Please write your feedback message");
+      return;
+    }
+
+    if (feedbackRating < 1 || feedbackRating > 5) {
+      toast.error("Please select a rating between 1 and 5 stars");
+      return;
+    }
+
+    const companyId =
+      feedbackBooking.companyId ||
+      (feedbackBooking.tripId && feedbackBooking.tripId.length === 24
+        ? feedbackBooking.tripId
+        : "6a6dcc6e5c72f6021f7e6e9a");
+
+    setSubmittingFeedback(true);
+    try {
+      if (feedbackFile) {
+        const formData = new FormData();
+        formData.append("company", companyId);
+        formData.append("message", feedbackMessage.trim());
+        formData.append("star", String(feedbackRating));
+        formData.append("image", feedbackFile);
+
+        await apiClient.post("/api/feedbacks", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+      } else {
+        await apiClient.post("/api/feedbacks", {
+          company: companyId,
+          message: feedbackMessage.trim(),
+          star: feedbackRating,
+        });
+      }
+
+      // Mark feedback as submitted in localStorage
+      updateBooking(feedbackBooking.ref, { hasFeedback: true });
+      setBookings(getBookings());
+      toast.success("Thank you! Your feedback has been submitted.");
+      closeFeedbackDialog();
+    } catch (err: any) {
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to submit feedback. Please try again.";
+      toast.error(errorMsg);
+    } finally {
+      setSubmittingFeedback(false);
+    }
   };
 
   return (
@@ -83,7 +201,10 @@ function BookingsPage() {
                         {b.ref}
                       </span>
                       {b.isRoundTrip && (
-                        <Badge variant="outline" className="text-primary font-bold">
+                        <Badge
+                          variant="outline"
+                          className="text-primary font-bold"
+                        >
                           Round-trip
                         </Badge>
                       )}
@@ -95,6 +216,14 @@ function BookingsPage() {
                         {b.status}
                       </Badge>
                       <Badge variant="outline">{b.paymentStatus}</Badge>
+                      {b.hasFeedback && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200"
+                        >
+                          Feedback Given
+                        </Badge>
+                      )}
                     </div>
 
                     {/* Outbound leg */}
@@ -151,15 +280,20 @@ function BookingsPage() {
                     <Button size="sm" variant="outline">
                       <Download className="mr-1 h-4 w-4" /> Invoice
                     </Button>
-                    {b.status === "Confirmed" && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => cancel(b.ref)}
-                      >
-                        <XCircle className="mr-1 h-4 w-4" /> Cancel
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant={b.hasFeedback ? "secondary" : "default"}
+                      disabled={b.hasFeedback}
+                      onClick={() => openFeedbackDialog(b)}
+                      className={
+                        b.hasFeedback
+                          ? "opacity-60 cursor-not-allowed"
+                          : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      }
+                    >
+                      <MessageSquarePlus className="mr-1.5 h-4 w-4" />
+                      {b.hasFeedback ? "Feedback Sent" : "Give Feedback"}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -167,6 +301,7 @@ function BookingsPage() {
         </div>
       </div>
 
+      {/* Booking Detail Dialog */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -182,7 +317,9 @@ function BookingsPage() {
               </div>
 
               <div className="border-b pb-2 space-y-1.5">
-                <p className="font-semibold text-primary">1. Departure Ticket</p>
+                <p className="font-semibold text-primary">
+                  1. Departure Ticket
+                </p>
                 <Row
                   label="Bus"
                   value={`${detail.company} · ${detail.busName}`}
@@ -232,6 +369,169 @@ function BookingsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Give Feedback Dialog */}
+      <Dialog
+        open={!!feedbackBooking}
+        onOpenChange={(open) => !open && closeFeedbackDialog()}
+      >
+        <DialogContent className="max-w-lg sm:rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <MessageSquarePlus className="h-5 w-5 text-emerald-600" />
+              Rate & Give Feedback
+            </DialogTitle>
+            <DialogDescription>
+              Share your experience traveling with{" "}
+              <span className="font-semibold text-foreground">
+                {feedbackBooking?.company}
+              </span>{" "}
+              (Trip {feedbackBooking?.ref})
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={submitFeedback} className="space-y-5 pt-2">
+            {/* Star Rating Section */}
+            <div>
+              <Label className="block text-sm font-semibold text-foreground mb-2">
+                Your Rating
+              </Label>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const isFilled =
+                    (hoverRating !== null ? hoverRating : feedbackRating) >=
+                    star;
+                  return (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setFeedbackRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(null)}
+                      className="p-1 rounded-lg transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <Star
+                        className={`h-8 w-8 transition-colors ${
+                          isFilled
+                            ? "fill-amber-400 text-amber-400"
+                            : "text-muted stroke-[1.5]"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+                <span className="ml-2 text-sm font-medium text-muted-foreground">
+                  {feedbackRating === 5 && "⭐ Excellent"}
+                  {feedbackRating === 4 && "👍 Very Good"}
+                  {feedbackRating === 3 && "👌 Good"}
+                  {feedbackRating === 2 && "😐 Fair"}
+                  {feedbackRating === 1 && "👎 Poor"}
+                </span>
+              </div>
+            </div>
+
+            {/* Message Area */}
+            <div>
+              <Label
+                htmlFor="feedback-message"
+                className="block text-sm font-semibold text-foreground mb-1.5"
+              >
+                Feedback Message <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="feedback-message"
+                rows={4}
+                required
+                placeholder="Tell us what you liked or how we can improve the service..."
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value)}
+                className="resize-none rounded-xl text-sm"
+              />
+            </div>
+
+            {/* Photo Upload Section */}
+            <div>
+              <Label className="block text-sm font-semibold text-foreground mb-1.5">
+                Add a Photo (Optional)
+              </Label>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+
+              {!feedbackPreview ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-emerald-500/70 hover:bg-emerald-50/20 transition-all text-center group"
+                >
+                  <UploadCloud className="h-8 w-8 text-muted-foreground group-hover:text-emerald-600 transition-colors mb-2" />
+                  <p className="text-xs font-medium text-foreground">
+                    Click to upload a picture
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    PNG, JPG or WEBP up to 5MB
+                  </p>
+                </div>
+              ) : (
+                <div className="relative rounded-xl overflow-hidden border border-border bg-muted/40 p-2 flex items-center gap-3">
+                  <img
+                    src={feedbackPreview}
+                    alt="Feedback upload preview"
+                    className="h-16 w-16 object-cover rounded-lg border border-border"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium truncate text-foreground">
+                      {feedbackFile?.name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {feedbackFile
+                        ? (feedbackFile.size / 1024).toFixed(1) + " KB"
+                        : ""}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeFeedbackDialog}
+                disabled={submittingFeedback}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={submittingFeedback || !feedbackMessage.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]"
+              >
+                {submittingFeedback ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Feedback"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <SiteFooter />
     </div>
   );
@@ -245,4 +545,3 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

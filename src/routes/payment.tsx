@@ -410,6 +410,7 @@ function PaymentPage() {
       ref,
       tripId: trip._id,
       company: company?.name || trip.company,
+      companyId: company?._id || trip.companyId,
       busName: trip.busName,
       from:
         typeof trip.from === "object"
@@ -438,6 +439,7 @@ function PaymentPage() {
       isRoundTrip: draft.isRoundTrip,
       returnTripId: draft.returnTripId,
       returnCompany: returnTrip?.company,
+      returnCompanyId: returnTrip?.companyId,
       returnBusName: returnTrip?.busName,
       returnFrom: returnTrip
         ? typeof returnTrip.from === "object"

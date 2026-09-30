@@ -292,12 +292,17 @@ export interface Booking {
   isRoundTrip?: boolean;
   returnTripId?: string;
   returnCompany?: string;
+  returnCompanyId?: string;
   returnBusName?: string;
   returnFrom?: string;
   returnTo?: string;
   returnDate?: string;
   returnDepartureTime?: string;
   returnSeats?: string[];
+
+  // Feedback tracking
+  companyId?: string;
+  hasFeedback?: boolean;
 }
 
 const BKEY = "bus_bookings";
