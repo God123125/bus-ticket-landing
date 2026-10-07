@@ -119,21 +119,16 @@ export function BookingsPage() {
       return;
     }
 
-    const companyId =
-      feedbackBooking.companyId ||
-      (feedbackBooking.tripId && feedbackBooking.tripId.length === 24
-        ? feedbackBooking.tripId
-        : "6a6dcc6e5c72f6021f7e6e9a");
+    const companyId = feedbackBooking.companyId;
 
     setSubmittingFeedback(true);
     try {
       if (feedbackFile) {
         const formData = new FormData();
-        formData.append("company", companyId);
+        formData.append("company", companyId as string);
         formData.append("message", feedbackMessage.trim());
         formData.append("star", String(feedbackRating));
         formData.append("image", feedbackFile);
-
         await apiClient.post("/api/feedbacks", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
