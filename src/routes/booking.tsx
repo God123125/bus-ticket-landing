@@ -143,7 +143,7 @@ export function BookingsPage() {
       }
 
       // Mark feedback as submitted in localStorage
-      updateBooking(feedbackBooking.ref, { hasFeedback: true });
+      updateBooking(feedbackBooking.booking_code, { hasFeedback: true });
       setBookings(getBookings());
       toast.success("Thank you! Your feedback has been submitted.");
       closeFeedbackDialog();
@@ -188,12 +188,12 @@ export function BookingsPage() {
           )}
           {!loading &&
             bookings.map((b) => (
-              <Card key={b.ref} className="p-5 card-hover">
+              <Card key={b.booking_code} className="p-5 card-hover">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-semibold text-primary">
-                        {b.ref}
+                        {b.booking_code}
                       </span>
                       {b.isRoundTrip && (
                         <Badge
@@ -300,7 +300,7 @@ export function BookingsPage() {
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Booking {detail?.ref}</DialogTitle>
+            <DialogTitle>Booking {detail?.booking_code}</DialogTitle>
           </DialogHeader>
           {detail && (
             <div className="space-y-3 text-sm">
@@ -380,7 +380,7 @@ export function BookingsPage() {
               <span className="font-semibold text-foreground">
                 {feedbackBooking?.company}
               </span>{" "}
-              (Trip {feedbackBooking?.ref})
+              (Trip {feedbackBooking?.booking_code})
             </DialogDescription>
           </DialogHeader>
 

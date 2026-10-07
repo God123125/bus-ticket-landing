@@ -272,7 +272,8 @@ export function clearDraft() {
 
 // My bookings (localStorage)
 export interface Booking {
-  ref: string;
+  access_token?: string;
+  booking_code: string;
   tripId: string;
   company: string;
   busName: string;
@@ -318,7 +319,7 @@ export function saveBooking(b: Booking) {
 }
 export function updateBooking(ref: string, patch: Partial<Booking>) {
   const list = getBookings().map((b) =>
-    b.ref === ref ? { ...b, ...patch } : b,
+    b.booking_code === ref ? { ...b, ...patch } : b,
   );
   localStorage.setItem(BKEY, JSON.stringify(list));
 }

@@ -132,7 +132,7 @@ function PaymentPage() {
   // Company KHQR State
   const [company, setCompany] = useState<ICompany | null>(null);
   const [loadingCompany, setLoadingCompany] = useState(false);
-
+  const [accessToken, setAccessToken] = useState("");
   // Payer bank details for verification
   const [senderBank, setSenderBank] = useState("ABA Bank");
   const [senderAccountName, setSenderAccountName] = useState(
@@ -279,7 +279,7 @@ function PaymentPage() {
     const messagePayload = {
       companyId: company?._id || trip.companyId,
       ownerId: company?.owner,
-      bookingRef: bookingReference,
+      booking_code: bookingReference,
       passenger: {
         name: draft.passenger?.fullName,
         phone: draft.passenger?.phone,
@@ -335,7 +335,11 @@ function PaymentPage() {
     };
 
     try {
-      await apiClient.post("/api/confirm-payment", messagePayload);
+      await apiClient
+        .post("/api/confirm-payment", messagePayload)
+        .then((res: any) => {
+          setAccessToken(res.data.access_token);
+        });
     } catch (err) {
       console.warn(
         "Could not dispatch confirm-payment telegram notification:",
@@ -359,55 +363,19 @@ function PaymentPage() {
 
   const confirm = async () => {
     setProcessing(true);
-    const ref = "GB" + Math.random().toString(36).slice(2, 8).toUpperCase();
-
-    // 1. Confirm bookings on backend
-    if (draft.bookingId) {
-      try {
-        await apiClient.patch(`/api/bookings/${draft.bookingId}`, {
-          status: "confirmed",
-          payment_info: {
-            method,
-            senderBank,
-            senderAccountName,
-            senderAccountNumber,
-            transactionRef,
-            paid_amount: grandTotal,
-          },
-        });
-      } catch (err) {
-        console.warn("Could not update departure booking to confirmed:", err);
-      }
-    }
-
-    if (draft.returnBookingId) {
-      try {
-        await apiClient.patch(`/api/bookings/${draft.returnBookingId}`, {
-          status: "confirmed",
-          payment_info: {
-            method,
-            senderBank,
-            senderAccountName,
-            senderAccountNumber,
-            transactionRef,
-            paid_amount: grandTotal,
-          },
-        });
-      } catch (err) {
-        console.warn("Could not update return booking to confirmed:", err);
-      }
-    }
-
+    const booking_code =
+      "GB" + Math.random().toString(36).slice(2, 8).toUpperCase();
     // 2. Trigger Telegram Notification
     try {
-      await sendTelegramNotification(ref);
+      await sendTelegramNotification(booking_code);
     } catch (e) {
       console.warn("Telegram notification warning:", e);
     }
 
     // 3. Save into LocalStorage for booking history
     saveBooking({
-      ref,
+      access_token: accessToken,
+      booking_code,
       tripId: trip._id,
       company: company?.name || trip.company,
       companyId: company?._id || trip.companyId,
@@ -461,7 +429,7 @@ function PaymentPage() {
     toast.success(
       "Payment confirmed & notification dispatched! Have a great trip.",
     );
-    nav({ to: "/success", search: { ref } });
+    nav({ to: "/success", search: { booking_code } });
   };
 
   const qrDisplayImage =

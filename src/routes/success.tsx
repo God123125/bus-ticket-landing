@@ -9,14 +9,14 @@ import { getBookings, clearDraft } from "@/lib/booking-data";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/success")({
-  validateSearch: z.object({ ref: z.string() }),
+  validateSearch: z.object({ booking_code: z.string() }),
   component: SuccessPage,
 });
 
 function SuccessPage() {
-  const { ref } = Route.useSearch();
+  const { booking_code } = Route.useSearch();
   const nav = useNavigate({ from: Route.fullPath });
-  const booking = getBookings().find((b) => b.ref === ref);
+  const booking = getBookings().find((b) => b.booking_code === booking_code);
 
   useEffect(() => {
     clearDraft();
@@ -59,7 +59,7 @@ function SuccessPage() {
                 Booking Reference
               </p>
               <p className="mt-1 text-2xl font-black text-primary">
-                {booking.ref}
+                {booking.booking_code}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -159,4 +159,3 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
