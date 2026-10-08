@@ -26,12 +26,16 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem("token");
+    const accessToken = localStorage.getItem("bus_bookings.access_token");
     if (token) {
       if (isTokenExpired(token)) {
         clearAuthSession();
       } else {
         config.headers.set("Authorization", `Bearer ${token}`);
       }
+    }
+    if (accessToken) {
+      config.headers.set("x-booking-token", accessToken);
     }
     if (!(config.data instanceof FormData)) {
       config.headers.set("Content-Type", "application/json");
