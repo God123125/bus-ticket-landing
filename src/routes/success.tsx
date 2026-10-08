@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SiteNav } from "@/components/site-nav";
 import { getBookings, clearDraft } from "@/lib/booking-data";
+import { downloadBookingInvoice } from "@/lib/invoice";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/success")({
@@ -47,10 +48,10 @@ function SuccessPage() {
         <h1 className="text-center text-3xl font-extrabold">
           Booking Confirmed!
         </h1>
-        <p className="mt-2 text-center text-muted-foreground">
+        {/* <p className="mt-2 text-center text-muted-foreground">
           Your e-ticket has been sent to{" "}
           <strong className="text-foreground">{booking.passenger.email}</strong>
-        </p>
+        </p> */}
 
         <Card className="mt-8 p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between border-b pb-4">
@@ -130,7 +131,11 @@ function SuccessPage() {
         </Card>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Button variant="outline" className="gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => downloadBookingInvoice(booking)}
+          >
             <Download className="h-4 w-4" /> Download Ticket
           </Button>
           <Button

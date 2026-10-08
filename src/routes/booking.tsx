@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { getBookings, updateBooking, type Booking } from "@/lib/booking-data";
+import { downloadBookingInvoice } from "@/lib/invoice";
 import { apiClient } from "@/api/client";
 import {
   Dialog,
@@ -272,7 +273,11 @@ export function BookingsPage() {
                     >
                       <Eye className="mr-1 h-4 w-4" /> View
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadBookingInvoice(b)}
+                    >
                       <Download className="mr-1 h-4 w-4" /> Invoice
                     </Button>
                     <Button
@@ -358,8 +363,18 @@ export function BookingsPage() {
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button onClick={() => setDetail(null)}>Close</Button>
+          <DialogFooter className="flex items-center justify-between sm:justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (detail) downloadBookingInvoice(detail);
+              }}
+              className="gap-1.5"
+            >
+              <Download className="h-4 w-4" /> Download Invoice
+            </Button>
+            <Button size="sm" onClick={() => setDetail(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

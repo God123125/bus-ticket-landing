@@ -10,6 +10,9 @@ export const resources = {
         home: "Home",
         myBookings: "My Bookings",
         login: "Login",
+        logout: "Logout",
+        account: "Account",
+        profile: "Profile",
       },
       hero: {
         badge: "Cambodia's #1 Modern Bus Ticketing Network",
@@ -127,6 +130,9 @@ export const resources = {
         home: "ទំព័រដើម",
         myBookings: "សំបុត្ររបស់ខ្ញុំ",
         login: "ចូលគណនី",
+        logout: "ចាកចេញ",
+        account: "គណនី",
+        profile: "ព័ត៌មានផ្ទាល់ខ្លួន",
       },
       hero: {
         badge: "បណ្ដាញកក់សំបុត្រឡានក្រុងទំនើបឈានមុខគេនៅកម្ពុជា",

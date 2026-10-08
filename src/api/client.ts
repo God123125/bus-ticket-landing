@@ -4,6 +4,7 @@ import axios, {
   AxiosResponse,
   AxiosError,
 } from "axios";
+import { isTokenExpired, clearAuthSession } from "@/lib/auth";
 
 const getBaseUrl = (): string => {
   if (typeof import.meta !== "undefined" && import.meta.env) {
@@ -26,7 +27,11 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem("token");
     if (token) {
-      config.headers.set("Authorization", `Bearer ${token}`);
+      if (isTokenExpired(token)) {
+        clearAuthSession();
+      } else {
+        config.headers.set("Authorization", `Bearer ${token}`);
+      }
     }
     if (!(config.data instanceof FormData)) {
       config.headers.set("Content-Type", "application/json");
@@ -43,7 +48,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    // central place to log, show a toast, redirect on 401, etc.
+    if (error.response?.status === 401) {
+      clearAuthSession();
+    }
     return Promise.reject(error);
   },
 );

@@ -79,6 +79,9 @@ function LoginPage() {
         const token = res.data?.token || res.data?.data?.token;
         if (token) {
           localStorage.setItem("token", token);
+          localStorage.setItem("name", res.data?.data?.user?.name);
+          localStorage.setItem("email", res.data?.data?.user?.email);
+          localStorage.setItem("profile", res.data?.data?.user?.profile);
         }
         toast.success("Successfully logged in with Google!");
       } catch (error: any) {
@@ -235,14 +238,32 @@ function LoginPage() {
                 </Button> */}
                 <GoogleLogin
                   onSuccess={async (credentialResponse) => {
-                    const payload = { idToken: credentialResponse.credential };
-                    const res = await apiClient.post(
-                      "/api/google/auth",
-                      payload,
-                    );
-                    if (res.data?.token) {
-                      localStorage.setItem("token", res.data.token);
-                      toast.success("Logged in with Google");
+                    try {
+                      const payload = { idToken: credentialResponse.credential };
+                      const res = await apiClient.post(
+                        "/api/google/auth",
+                        payload,
+                      );
+                      const token = res.data?.token || res.data?.data?.token;
+                      const user = res.data?.user || res.data?.data?.user;
+                      if (token) {
+                        localStorage.setItem("token", token);
+                        if (user?.name) localStorage.setItem("name", user.name);
+                        if (user?.email) localStorage.setItem("email", user.email);
+                        if (user?.profile || user?.picture || user?.avatar) {
+                          localStorage.setItem(
+                            "profile",
+                            user.profile || user.picture || user.avatar || "",
+                          );
+                        }
+                        toast.success("Successfully logged in with Google!");
+                        window.location.href = "/";
+                      }
+                    } catch (err: any) {
+                      console.error("Google login backend verification failed", err);
+                      toast.error(
+                        err.response?.data?.message || "Failed to authenticate with backend",
+                      );
                     }
                   }}
                   onError={() => {
