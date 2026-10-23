@@ -14,6 +14,11 @@ import {
   FileText,
   AlertCircle,
   Copy,
+  Tag,
+  TicketPercent,
+  Check,
+  X,
+  LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
+import { getValidAuthSession } from "@/lib/auth";
 import {
   getTrip,
   loadDraft,
@@ -48,6 +54,18 @@ export interface ICompany {
   color?: string;
   commission_rate?: number;
   khqrImage?: string;
+}
+
+export interface IPromoCode {
+  _id: string;
+  code: string;
+  discountType: "percentage" | "fixed" | string;
+  value: number;
+  minSpend?: number;
+  expiresAt?: string;
+  maxUses?: number;
+  description?: string;
+  [key: string]: any;
 }
 
 function normalizeGeo(
@@ -142,6 +160,13 @@ function PaymentPage() {
   const [transactionRef, setTransactionRef] = useState("");
   const [hasPaidAlertSent, setHasPaidAlertSent] = useState(false);
 
+  // Auth & Promo Code State
+  const authSession = getValidAuthSession();
+  const isLoggedIn = !!authSession?.isAuthenticated;
+  const [availablePromos, setAvailablePromos] = useState<IPromoCode[]>([]);
+  const [loadingPromos, setLoadingPromos] = useState(false);
+  const [selectedPromo, setSelectedPromo] = useState<IPromoCode | null>(null);
+
   // 1. Fetch Departure and Return Trip Details
   useEffect(() => {
     let isMounted = true;
@@ -230,6 +255,42 @@ function PaymentPage() {
     }
   }, [trip?.companyId, draft?.trip?.companyId, trip?.company]);
 
+  // 3. Fetch Available Promo Codes for Logged-in Users
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setAvailablePromos([]);
+      return;
+    }
+    setLoadingPromos(true);
+    apiClient
+      .get("/promo-codes/available")
+      .then((res) => {
+        const data = res.data?.data || res.data?.promoCodes || res.data;
+        if (Array.isArray(data)) {
+          setAvailablePromos(data);
+        } else {
+          setAvailablePromos([]);
+        }
+      })
+      .catch((err) => {
+        // Fallback check with /api/promo-codes/available if route prefixed
+        apiClient
+          .get("/api/promo-codes/available")
+          .then((res) => {
+            const data = res.data?.data || res.data?.promoCodes || res.data;
+            if (Array.isArray(data)) {
+              setAvailablePromos(data);
+            }
+          })
+          .catch((e) => {
+            console.warn("Could not fetch available promo codes:", err, e);
+          });
+      })
+      .finally(() => {
+        setLoadingPromos(false);
+      });
+  }, [isLoggedIn]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -263,7 +324,58 @@ function PaymentPage() {
     draft.isRoundTrip && returnTrip
       ? (draft.returnSelectedSeats?.length || 0) * returnTrip.price
       : 0;
-  const grandTotal = departureTotal + returnTotal;
+  const rawTotal = departureTotal + returnTotal;
+
+  // Calculate promo discount locally (backend recalculates on submit)
+  let discountAmount = 0;
+  if (selectedPromo) {
+    if (
+      selectedPromo.discountType === "percentage" ||
+      selectedPromo.discountType === "PERCENTAGE"
+    ) {
+      discountAmount = rawTotal * (Number(selectedPromo.value) / 100);
+    } else {
+      discountAmount = Number(selectedPromo.value);
+    }
+    // Prevent negative total
+    discountAmount = Math.min(discountAmount, rawTotal);
+  }
+  const grandTotal = Math.max(0, rawTotal - discountAmount);
+
+  const handleApplyPromo = (promo: IPromoCode) => {
+    if (!isLoggedIn) {
+      toast.error("Please login first to apply a promo code");
+      return;
+    }
+    if (promo.expiresAt && new Date(promo.expiresAt) <= new Date()) {
+      // setPromoError("This promo code has expired");
+      toast.error("This promo code has expired");
+      return;
+    }
+    if (promo.minSpend && rawTotal < promo.minSpend) {
+      toast.error(`Minimum spend of $${promo.minSpend.toFixed(2)} required`);
+      return;
+    }
+    setSelectedPromo(promo);
+    toast.success(`Promo code "${promo.code}" applied!`);
+  };
+
+  const handleSelectPromo = (promoId: string) => {
+    if (!promoId) {
+      setSelectedPromo(null);
+      toast.info("Promo code removed");
+      return;
+    }
+    const found = availablePromos.find((p) => p._id === promoId);
+    if (found) {
+      handleApplyPromo(found);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setSelectedPromo(null);
+    toast.info("Promo code removed");
+  };
 
   // Helper to send Telegram Notification to Owner via /confirm-payment
   const sendTelegramNotification = async (bookingReference: string) => {
@@ -280,6 +392,7 @@ function PaymentPage() {
       companyId: company?._id || trip.companyId,
       ownerId: company?.owner,
       booking_code: bookingReference,
+      promo_id: selectedPromo?._id,
       passenger: {
         name: draft.passenger?.fullName,
         phone: draft.passenger?.phone,
@@ -367,7 +480,7 @@ function PaymentPage() {
     setProcessing(true);
     const booking_code =
       "GB" + Math.random().toString(36).slice(2, 8).toUpperCase();
-    
+
     // 2. Trigger Telegram Notification & get access token
     let token = accessToken;
     try {
@@ -781,13 +894,154 @@ function PaymentPage() {
               <Row label="Email" value={draft.passenger.email} />
             </div>
 
+            {/* Price Breakdown */}
+            <div className="space-y-1.5 border-b pb-3 text-xs sm:text-sm">
+              <Row
+                label="Original Subtotal"
+                value={`$${rawTotal.toFixed(2)}`}
+              />
+              {selectedPromo && (
+                <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span className="flex items-center gap-1">
+                    <TicketPercent className="h-3.5 w-3.5" />
+                    Discount ({selectedPromo.code})
+                  </span>
+                  <span>-${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
             {/* Total */}
             <div className="pt-1 flex items-center justify-between font-black text-lg text-foreground">
               <span>Total Payable:</span>
-              <span className="text-2xl text-primary font-extrabold">
-                ${grandTotal.toFixed(2)}
-              </span>
+              <div className="text-right">
+                {selectedPromo && (
+                  <span className="block text-xs line-through text-muted-foreground font-normal">
+                    ${rawTotal.toFixed(2)}
+                  </span>
+                )}
+                <span className="text-2xl text-primary font-extrabold">
+                  ${grandTotal.toFixed(2)}
+                </span>
+              </div>
             </div>
+          </Card>
+
+          {/* Promo Code Card */}
+          <Card className="p-5 border-border/80 shadow-md rounded-2xl space-y-4">
+            <div className="flex items-center gap-2">
+              <TicketPercent className="h-5 w-5 text-primary" />
+              <h3 className="font-bold text-base">Promo Code</h3>
+            </div>
+
+            {!isLoggedIn ? (
+              <div className="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-xs text-amber-700 dark:text-amber-400 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">
+                      Login required to use promo codes
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Sign in to your account to unlock discounts and apply
+                      coupons to your booking.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline pt-1"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  Sign In to Apply Promo
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Select Dropdown for Promo Code */}
+                <div>
+                  <Label className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                    Choose Available Promo Code
+                  </Label>
+                  <select
+                    value={selectedPromo?._id || ""}
+                    onChange={(e) => handleSelectPromo(e.target.value)}
+                    disabled={loadingPromos}
+                    className="h-10 w-full rounded-xl border border-border/80 bg-background px-3 text-xs font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground cursor-pointer"
+                  >
+                    <option value="">
+                      {loadingPromos
+                        ? "Loading available promo codes..."
+                        : availablePromos.length === 0
+                          ? "No promo codes available"
+                          : "-- Select a promo code --"}
+                    </option>
+                    {availablePromos.map((p) => {
+                      const isPercentage =
+                        p.discountType === "percentage" ||
+                        p.discountType === "PERCENTAGE";
+                      const discountText = isPercentage
+                        ? `${p.value}% OFF`
+                        : `$${p.value} OFF`;
+                      const isExpired =
+                        p.expiresAt && new Date(p.expiresAt) <= new Date();
+
+                      return (
+                        <option
+                          key={p._id}
+                          value={p._id}
+                          disabled={Boolean(isExpired)}
+                        >
+                          {p.code} - {discountText}
+                          {p.minSpend ? ` (Min spend: $${p.minSpend})` : ""}
+                          {isExpired ? " (Expired)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Applied Promo Banner / Details */}
+                {selectedPromo && (
+                  <div className="flex items-center justify-between rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full bg-emerald-500 text-white p-1">
+                        <Check className="h-3 w-3" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                            {selectedPromo.code}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1.5 py-0"
+                          >
+                            {selectedPromo.discountType === "percentage" ||
+                            selectedPromo.discountType === "PERCENTAGE"
+                              ? `${selectedPromo.value}% OFF`
+                              : `$${selectedPromo.value} OFF`}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Saved ${discountAmount.toFixed(2)} on this trip
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemovePromo}
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive rounded-lg"
+                      title="Remove promo code"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         </div>
       </div>
