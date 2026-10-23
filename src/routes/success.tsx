@@ -5,23 +5,163 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SiteNav } from "@/components/site-nav";
-import { getBookings, clearDraft } from "@/lib/booking-data";
+import {
+  getStoredBookingTokens,
+  clearDraft,
+  type Booking,
+  type StoredBookingRef,
+} from "@/lib/booking-data";
 import { downloadBookingInvoice } from "@/lib/invoice";
-import { useEffect } from "react";
+import { apiClient } from "@/api/client";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/success")({
   validateSearch: z.object({ booking_code: z.string() }),
   component: SuccessPage,
 });
 
+function formatTripDate(rawDate?: string | Date): string {
+  if (!rawDate) return "N/A";
+  try {
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return String(rawDate);
+    return d.toISOString().split("T")[0];
+  } catch {
+    return String(rawDate);
+  }
+}
+
+function normalizeBooking(apiItem: any, storedRef?: StoredBookingRef): Booking {
+  const trip = apiItem.trip || {};
+  const bus = trip.bus || {};
+  const schedule = trip.schedule || {};
+  const company = trip.company || apiItem.company || {};
+  const user = apiItem.user || {};
+  const userInfo = apiItem.user_info || {};
+
+  const fromName =
+    schedule.from?.name_en ||
+    schedule.from?.name_kh ||
+    (typeof schedule.from === "string" ? schedule.from : "Phnom Penh");
+  const toName =
+    schedule.to?.name_en ||
+    schedule.to?.name_kh ||
+    (typeof schedule.to === "string" ? schedule.to : "Siem Reap");
+
+  const companyName =
+    company.name ||
+    (typeof company === "string" ? company : "GreenBus Partner");
+  const companyId =
+    company._id ||
+    (typeof company === "string" ? company : trip.company?._id || trip.company);
+
+  const busName =
+    bus.model_name || bus.bus_number || trip.busName || "Express Bus";
+
+  const departureDate = formatTripDate(
+    trip.departure_date || apiItem.createdAt,
+  );
+  const departureTime =
+    schedule.departure_time || trip.departure_time || "08:00";
+
+  const passengerName =
+    userInfo.name ||
+    userInfo.fullName ||
+    user.name ||
+    user.fullName ||
+    "Passenger";
+  const passengerPhone =
+    userInfo.phone || user.phone || user.phoneNumber || "N/A";
+  const passengerEmail = userInfo.email || user.email || "N/A";
+
+  const statusRaw = (apiItem.status || "CONFIRMED").toUpperCase();
+  const status: "Confirmed" | "Cancelled" =
+    statusRaw === "CANCELLED" || statusRaw === "CANCELED"
+      ? "Cancelled"
+      : "Confirmed";
+
+  return {
+    access_token: storedRef?.access_token || apiItem.accessTokenHash,
+    booking_code: apiItem.booking_code || storedRef?.booking_code || "",
+    tripId: trip._id || trip,
+    company: companyName,
+    companyId: companyId,
+    busName: busName,
+    from: fromName,
+    to: toName,
+    date: departureDate,
+    departureTime: departureTime,
+    seats: Array.isArray(apiItem.booked_seats) ? apiItem.booked_seats : [],
+    passenger: {
+      fullName: passengerName,
+      phone: passengerPhone,
+      email: passengerEmail,
+    },
+    total: typeof apiItem.total_price === "number" ? apiItem.total_price : 0,
+    paymentMethod: storedRef?.paymentMethod || "KHQR",
+    paymentStatus: "Paid",
+    status: status,
+    createdAt: apiItem.createdAt || new Date().toISOString(),
+    hasFeedback: storedRef?.hasFeedback ?? false,
+  };
+}
+
 function SuccessPage() {
   const { booking_code } = Route.useSearch();
   const nav = useNavigate({ from: Route.fullPath });
-  const booking = getBookings().find((b) => b.booking_code === booking_code);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     clearDraft();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchBooking = async () => {
+      setLoading(true);
+      try {
+        const storedTokens = getStoredBookingTokens();
+        const storedRef = storedTokens.find(
+          (b) => b.booking_code === booking_code,
+        );
+        const params: Record<string, string> = { booking_code };
+        if (storedRef?.access_token) {
+          params.access_token = storedRef.access_token;
+        }
+        const res = await apiClient.get("/api/bookings", { params });
+        const data = res.data?.data;
+        if (isMounted) {
+          if (Array.isArray(data) && data.length > 0) {
+            setBooking(normalizeBooking(data[0], storedRef));
+          } else if (data && typeof data === "object" && !Array.isArray(data)) {
+            setBooking(normalizeBooking(data, storedRef));
+          } else {
+            setBooking(null);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch booking from /api/bookings:", err);
+        if (isMounted) setBooking(null);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchBooking();
+    return () => {
+      isMounted = false;
+    };
+  }, [booking_code]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-10 text-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mb-4" />
+        <p className="text-sm text-muted-foreground">Loading your booking details...</p>
+      </div>
+    );
+  }
 
   if (!booking)
     return (

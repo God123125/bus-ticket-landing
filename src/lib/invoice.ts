@@ -33,6 +33,13 @@ export function downloadBookingInvoice(booking: Booking): void {
   const invoiceDate = formatDate(booking.createdAt || new Date().toISOString());
   const formattedTotal = Number(booking.total || 0).toFixed(2);
 
+  const companyName =
+    typeof booking.company === "object" && booking.company?.name
+      ? booking.company.name
+      : typeof booking.company === "string"
+        ? booking.company
+        : "GreenBus Partner";
+
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
@@ -314,7 +321,7 @@ export function downloadBookingInvoice(booking: Booking): void {
             <strong>${booking.from} → ${booking.to}</strong>
           </td>
           <td>
-            ${booking.company}<br />
+            ${companyName}<br />
             <span style="font-size: 12px; color: #64748b;">${booking.busName}</span>
           </td>
           <td>
@@ -334,7 +341,7 @@ export function downloadBookingInvoice(booking: Booking): void {
             <strong>${booking.returnFrom} → ${booking.returnTo}</strong>
           </td>
           <td>
-            ${booking.returnCompany || booking.company}<br />
+            ${booking.returnCompany || companyName}<br />
             <span style="font-size: 12px; color: #64748b;">${booking.returnBusName || booking.busName}</span>
           </td>
           <td>

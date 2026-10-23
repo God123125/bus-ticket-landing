@@ -335,16 +335,18 @@ function PaymentPage() {
     };
 
     try {
-      await apiClient
-        .post("/api/confirm-payment", messagePayload)
-        .then((res: any) => {
-          setAccessToken(res.data.access_token);
-        });
+      const res = await apiClient.post("/api/confirm-payment", messagePayload);
+      const token = res.data?.access_token || "";
+      if (token) {
+        setAccessToken(token);
+      }
+      return token;
     } catch (err) {
       console.warn(
         "Could not dispatch confirm-payment telegram notification:",
         err,
       );
+      return "";
     }
   };
 
@@ -365,63 +367,28 @@ function PaymentPage() {
     setProcessing(true);
     const booking_code =
       "GB" + Math.random().toString(36).slice(2, 8).toUpperCase();
-    // 2. Trigger Telegram Notification
+    
+    // 2. Trigger Telegram Notification & get access token
+    let token = accessToken;
     try {
-      await sendTelegramNotification(booking_code);
+      const dispatchedToken = await sendTelegramNotification(booking_code);
+      if (dispatchedToken) {
+        token = dispatchedToken;
+      }
     } catch (e) {
       console.warn("Telegram notification warning:", e);
     }
 
-    // 3. Save into LocalStorage for booking history
+    // 3. Save only booking code and access token in LocalStorage
     saveBooking({
-      access_token: accessToken,
+      access_token: token,
       booking_code,
-      tripId: trip._id,
-      company: company?.name || trip.company,
-      companyId: company?._id || trip.companyId,
-      busName: trip.busName,
-      from:
-        typeof trip.from === "object"
-          ? trip.from.name_en || trip.from.name_kh || ""
-          : trip.from,
-      to:
-        typeof trip.to === "object"
-          ? trip.to.name_en || trip.to.name_kh || ""
-          : trip.to,
-      date: draft.date,
-      departureTime: trip.departureTime,
-      seats: draft.selectedSeats,
-      passenger: draft.passenger!,
-      total: grandTotal,
       paymentMethod:
         method === "qr"
           ? "KHQR"
           : method === "mobile"
             ? "Mobile Banking"
             : "Card",
-      paymentStatus: "Paid",
-      status: "Confirmed",
-      createdAt: new Date().toISOString(),
-
-      // Round trip info
-      isRoundTrip: draft.isRoundTrip,
-      returnTripId: draft.returnTripId,
-      returnCompany: returnTrip?.company,
-      returnCompanyId: returnTrip?.companyId,
-      returnBusName: returnTrip?.busName,
-      returnFrom: returnTrip
-        ? typeof returnTrip.from === "object"
-          ? returnTrip.from.name_en || returnTrip.from.name_kh
-          : returnTrip.from
-        : undefined,
-      returnTo: returnTrip
-        ? typeof returnTrip.to === "object"
-          ? returnTrip.to.name_en || returnTrip.to.name_kh
-          : returnTrip.to
-        : undefined,
-      returnDate: draft.returnDate || draft.date,
-      returnDepartureTime: returnTrip?.departureTime,
-      returnSeats: draft.returnSelectedSeats,
     });
 
     saveDraft({ ...draft, paymentMethod: method });

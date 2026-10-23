@@ -270,12 +270,22 @@ export function clearDraft() {
   sessionStorage.removeItem(KEY);
 }
 
-// My bookings (localStorage)
+// My bookings (localStorage stored reference)
+export interface StoredBookingRef {
+  booking_code: string;
+  access_token?: string;
+  hasFeedback?: boolean;
+  paymentMethod?: string;
+}
+
 export interface Booking {
   access_token?: string;
   booking_code: string;
   tripId: string;
-  company: string;
+  company: {
+    name: string;
+    _id?: string;
+  };
   busName: string;
   from: string;
   to: string;
@@ -307,19 +317,85 @@ export interface Booking {
 }
 
 const BKEY = "bus_bookings";
-export function getBookings(): Booking[] {
+
+export function getStoredBookingTokens(): StoredBookingRef[] {
   if (typeof window === "undefined") return [];
   const v = localStorage.getItem(BKEY);
-  return v ? JSON.parse(v) : [];
+  if (!v) return [];
+  try {
+    const parsed = JSON.parse(v);
+    if (!Array.isArray(parsed)) return [];
+    
+    const seen = new Set<string>();
+    const result: StoredBookingRef[] = [];
+
+    for (const item of parsed) {
+      if (!item || !item.booking_code) continue;
+      const token = item.access_token || item.accessToken || "";
+      // If user is not logged in and item has no access_token, it cannot be queried from backend
+      const userToken = localStorage.getItem("token");
+      if (!token && !userToken) continue;
+
+      if (!seen.has(item.booking_code)) {
+        seen.add(item.booking_code);
+        result.push({
+          booking_code: item.booking_code,
+          access_token: token,
+          hasFeedback: Boolean(item.hasFeedback),
+          paymentMethod: item.paymentMethod,
+        });
+      }
+    }
+    return result;
+  } catch {
+    return [];
+  }
 }
-export function saveBooking(b: Booking) {
-  const list = getBookings();
-  list.unshift(b);
+
+export function saveBookingToken(ref: StoredBookingRef) {
+  if (typeof window === "undefined") return;
+  const list = getStoredBookingTokens().filter(
+    (item) => item.booking_code !== ref.booking_code,
+  );
+  list.unshift({
+    booking_code: ref.booking_code,
+    access_token: ref.access_token,
+    hasFeedback: ref.hasFeedback,
+    paymentMethod: ref.paymentMethod,
+  });
   localStorage.setItem(BKEY, JSON.stringify(list));
 }
-export function updateBooking(ref: string, patch: Partial<Booking>) {
-  const list = getBookings().map((b) =>
-    b.booking_code === ref ? { ...b, ...patch } : b,
+
+export function updateStoredBookingToken(
+  booking_code: string,
+  patch: Partial<StoredBookingRef>,
+) {
+  if (typeof window === "undefined") return;
+  const list = getStoredBookingTokens().map((b) =>
+    b.booking_code === booking_code ? { ...b, ...patch } : b,
   );
   localStorage.setItem(BKEY, JSON.stringify(list));
+}
+
+// Kept for backward compatibility across existing calls
+export function getBookings(): Booking[] {
+  // Full booking objects are no longer kept in localStorage.
+  // Use getStoredBookingTokens() and fetch from /api/bookings.
+  return [];
+}
+
+export function saveBooking(b: Partial<Booking> & { booking_code: string }) {
+  saveBookingToken({
+    booking_code: b.booking_code,
+    access_token: b.access_token,
+    hasFeedback: b.hasFeedback,
+    paymentMethod: b.paymentMethod,
+  });
+}
+
+export function updateBooking(ref: string, patch: Partial<Booking>) {
+  updateStoredBookingToken(ref, {
+    hasFeedback: patch.hasFeedback,
+    paymentMethod: patch.paymentMethod,
+  });
 }

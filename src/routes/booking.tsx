@@ -22,7 +22,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
-import { getBookings, updateBooking, type Booking } from "@/lib/booking-data";
+import {
+  getStoredBookingTokens,
+  updateStoredBookingToken,
+  type Booking,
+  type StoredBookingRef,
+} from "@/lib/booking-data";
 import { downloadBookingInvoice } from "@/lib/invoice";
 import { apiClient } from "@/api/client";
 import {
@@ -36,6 +41,111 @@ import {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/booking")({ component: BookingsPage });
+
+function formatTripDate(rawDate?: string | Date): string {
+  if (!rawDate) return "N/A";
+  try {
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return String(rawDate);
+    return d.toISOString().split("T")[0];
+  } catch {
+    return String(rawDate);
+  }
+}
+
+function normalizeBooking(apiItem: any, storedRef?: StoredBookingRef): Booking {
+  const trip = apiItem.trip || {};
+  const bus = trip.bus || {};
+  const schedule = trip.schedule || {};
+  const user = apiItem.user || {};
+  const userInfo = apiItem.user_info || {};
+
+  const fromName =
+    schedule.from?.name_en ||
+    schedule.from?.name_kh ||
+    (typeof schedule.from === "string" ? schedule.from : "Phnom Penh");
+  const toName =
+    schedule.to?.name_en ||
+    schedule.to?.name_kh ||
+    (typeof schedule.to === "string" ? schedule.to : "Siem Reap");
+
+  // Prioritize populated apiItem.company, which has { _id, name }
+  const companyObj =
+    apiItem.company && typeof apiItem.company === "object"
+      ? apiItem.company
+      : trip.company && typeof trip.company === "object"
+        ? trip.company
+        : null;
+
+  const companyName =
+    companyObj?.name ||
+    (typeof apiItem.company === "string" && !apiItem.company.match(/^[0-9a-fA-F]{24}$/)
+      ? apiItem.company
+      : typeof trip.company === "string" && !trip.company.match(/^[0-9a-fA-F]{24}$/)
+        ? trip.company
+        : "GreenBus Partner");
+
+  const companyId =
+    companyObj?._id ||
+    (typeof apiItem.company === "string"
+      ? apiItem.company
+      : typeof trip.company === "string"
+        ? trip.company
+        : undefined);
+
+  const busName =
+    bus.model_name || bus.bus_number || trip.busName || "Express Bus";
+
+  const departureDate = formatTripDate(
+    trip.departure_date || apiItem.createdAt,
+  );
+  const departureTime =
+    schedule.departure_time || trip.departure_time || "08:00";
+
+  const passengerName =
+    userInfo.name ||
+    userInfo.fullName ||
+    user.name ||
+    user.fullName ||
+    "Passenger";
+  const passengerPhone =
+    userInfo.phone || user.phone || user.phoneNumber || "N/A";
+  const passengerEmail = userInfo.email || user.email || "N/A";
+
+  const statusRaw = (apiItem.status || "CONFIRMED").toUpperCase();
+  const status: "Confirmed" | "Cancelled" =
+    statusRaw === "CANCELLED" || statusRaw === "CANCELED"
+      ? "Cancelled"
+      : "Confirmed";
+
+  return {
+    access_token: storedRef?.access_token || apiItem.accessTokenHash,
+    booking_code: apiItem.booking_code || storedRef?.booking_code || "",
+    tripId: trip._id || trip,
+    company: {
+      name: companyName,
+      _id: companyId,
+    },
+    companyId: companyId,
+    busName: busName,
+    from: fromName,
+    to: toName,
+    date: departureDate,
+    departureTime: departureTime,
+    seats: Array.isArray(apiItem.booked_seats) ? apiItem.booked_seats : [],
+    passenger: {
+      fullName: passengerName,
+      phone: passengerPhone,
+      email: passengerEmail,
+    },
+    total: typeof apiItem.total_price === "number" ? apiItem.total_price : 0,
+    paymentMethod: storedRef?.paymentMethod || "KHQR",
+    paymentStatus: "Paid",
+    status: status,
+    createdAt: apiItem.createdAt || new Date().toISOString(),
+    hasFeedback: storedRef?.hasFeedback ?? false,
+  };
+}
 
 export function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -53,11 +163,83 @@ export function BookingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setBookings(getBookings());
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(t);
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const stored = getStoredBookingTokens();
+        if (stored.length === 0) {
+          if (isMounted) {
+            setBookings([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Query /api/bookings for each stored booking using query params access_token & booking_code
+        const results = await Promise.all(
+          stored.map(async (ref) => {
+            try {
+              const params: Record<string, string> = {
+                booking_code: ref.booking_code,
+              };
+              if (ref.access_token) {
+                params.access_token = ref.access_token;
+              }
+              const res = await apiClient.get("/api/bookings", {
+                params,
+                signal: controller.signal,
+              });
+              const data = res.data?.list;
+              if (Array.isArray(data) && data.length > 0) {
+                return normalizeBooking(data[0], ref);
+              } else if (
+                data &&
+                typeof data === "object" &&
+                !Array.isArray(data)
+              ) {
+                return normalizeBooking(data, ref);
+              }
+              return null;
+            } catch (err: any) {
+              if (
+                err?.name === "CanceledError" ||
+                err?.code === "ERR_CANCELED"
+              ) {
+                return null;
+              }
+              console.warn(`Failed to fetch booking ${ref.booking_code}:`, err);
+              return null;
+            }
+          }),
+        );
+
+        if (isMounted) {
+          const validBookings = results.filter(
+            (b): b is Booking => b !== null && Boolean(b.booking_code),
+          );
+          setBookings(validBookings);
+        }
+      } catch (err: any) {
+        if (err?.name !== "CanceledError" && err?.code !== "ERR_CANCELED") {
+          console.error("Failed to load bookings from API:", err);
+          toast.error("Failed to fetch bookings");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, []);
 
   const openFeedbackDialog = (booking: Booking) => {
@@ -144,8 +326,16 @@ export function BookingsPage() {
       }
 
       // Mark feedback as submitted in localStorage
-      updateBooking(feedbackBooking.booking_code, { hasFeedback: true });
-      setBookings(getBookings());
+      updateStoredBookingToken(feedbackBooking.booking_code, {
+        hasFeedback: true,
+      });
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.booking_code === feedbackBooking.booking_code
+            ? { ...b, hasFeedback: true }
+            : b,
+        ),
+      );
       toast.success("Thank you! Your feedback has been submitted.");
       closeFeedbackDialog();
     } catch (err: any) {
@@ -226,7 +416,7 @@ export function BookingsPage() {
                     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         <Bus className="h-4 w-4 text-primary" />
-                        {b.company} · {b.busName}
+                        {b.company.name} · {b.busName}
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -247,7 +437,7 @@ export function BookingsPage() {
                       <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground border-t pt-2">
                         <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                           <ArrowLeftRight className="h-4 w-4 text-primary" />
-                          Return: {b.returnCompany || b.company}
+                          Return: {b.returnCompany || b.company.name}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -322,7 +512,7 @@ export function BookingsPage() {
                 </p>
                 <Row
                   label="Bus"
-                  value={`${detail.company} · ${detail.busName}`}
+                  value={`${detail.company.name} · ${detail.busName}`}
                 />
                 <Row label="Route" value={`${detail.from} → ${detail.to}`} />
                 <Row
@@ -337,7 +527,7 @@ export function BookingsPage() {
                   <p className="font-semibold text-primary">2. Return Ticket</p>
                   <Row
                     label="Bus"
-                    value={`${detail.returnCompany || detail.company} · ${detail.returnBusName || detail.busName}`}
+                    value={`${detail.returnCompany || detail.company.name} · ${detail.returnBusName || detail.busName}`}
                   />
                   <Row
                     label="Route"
@@ -374,7 +564,9 @@ export function BookingsPage() {
             >
               <Download className="h-4 w-4" /> Download Invoice
             </Button>
-            <Button size="sm" onClick={() => setDetail(null)}>Close</Button>
+            <Button size="sm" onClick={() => setDetail(null)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -393,7 +585,7 @@ export function BookingsPage() {
             <DialogDescription>
               Share your experience traveling with{" "}
               <span className="font-semibold text-foreground">
-                {feedbackBooking?.company}
+                {feedbackBooking?.company.name}
               </span>{" "}
               (Trip {feedbackBooking?.booking_code})
             </DialogDescription>
