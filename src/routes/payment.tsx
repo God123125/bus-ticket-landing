@@ -263,9 +263,9 @@ function PaymentPage() {
     }
     setLoadingPromos(true);
     apiClient
-      .get("/promo-codes/available")
+      .get("/api/promo-codes/available")
       .then((res) => {
-        const data = res.data?.data || res.data?.promoCodes || res.data;
+        const data = res.data.list;
         if (Array.isArray(data)) {
           setAvailablePromos(data);
         } else {
@@ -273,18 +273,7 @@ function PaymentPage() {
         }
       })
       .catch((err) => {
-        // Fallback check with /api/promo-codes/available if route prefixed
-        apiClient
-          .get("/api/promo-codes/available")
-          .then((res) => {
-            const data = res.data?.data || res.data?.promoCodes || res.data;
-            if (Array.isArray(data)) {
-              setAvailablePromos(data);
-            }
-          })
-          .catch((e) => {
-            console.warn("Could not fetch available promo codes:", err, e);
-          });
+        console.log(err);
       })
       .finally(() => {
         setLoadingPromos(false);
