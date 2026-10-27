@@ -408,7 +408,7 @@ function PaymentPage() {
           : undefined,
       payment: {
         method,
-        totalAmount: grandTotal,
+        totalAmount: rawTotal,
         senderBank:
           method === "qr" || method === "mobile" ? senderBank : "Credit Card",
         senderAccountName: senderAccountName || draft.passenger?.fullName,
@@ -498,7 +498,7 @@ function PaymentPage() {
     toast.success(
       "Payment confirmed & notification dispatched! Have a great trip.",
     );
-    nav({ to: "/success", search: { booking_code } });
+    nav({ to: "/booking" });
   };
 
   const qrDisplayImage =
