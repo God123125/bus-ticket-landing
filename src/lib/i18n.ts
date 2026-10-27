@@ -81,6 +81,7 @@ export const resources = {
         subtitle:
           "Real experiences from passengers exploring the Kingdom of Wonder",
         verifiedRider: "Verified Rider",
+        anonymousUser: "Anonymous User",
         r1: {
           name: "Sopheak L.",
           role: "Frequent Traveler",
@@ -194,6 +195,7 @@ export const resources = {
         title: "ទទួលបានការគាំទ្រពីអ្នកដំណើរជាង ៥០០,០០០+ នាក់",
         subtitle: "បទពិសោធន៍ពិតពីអ្នកដំណើរដែលធ្វើដំណើរកម្សាន្តទូទាំងព្រះរាជាណាចក្រកម្ពុជា",
         verifiedRider: "អ្នកដំណើរពិតប្រាកដ",
+        anonymousUser: "អ្នកដំណើរអនាមិក",
         r1: {
           name: "សុភក្តិ ល.",
           role: "អ្នកធ្វើដំណើរញឹកញាប់",

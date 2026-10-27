@@ -24,6 +24,7 @@ import {
   ArrowUpDown,
   Zap,
   ChevronUp,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -100,6 +101,55 @@ const fallbackSchedules = [
   },
 ];
 
+export interface IFeedbackLandingItem {
+  _id: string;
+  company?:
+    | {
+        _id?: string;
+        name?: string;
+        image?: string;
+      }
+    | string;
+  user?:
+    | {
+        _id?: string;
+        name?: string;
+        username?: string;
+        email?: string;
+        avatar?: string;
+        image?: string;
+        [key: string]: any;
+      }
+    | string;
+  message: string;
+  star: number;
+  image?: string;
+  imagePublicId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
+}
+
+const fallbackFeedbacks: IFeedbackLandingItem[] = [
+  {
+    _id: "6ac5af6675aa63ab32bcf605",
+    company: {
+      _id: "6a86b307a72503f44cc92b74",
+      name: "test",
+      image:
+        "https://res.cloudinary.com/dhzd7ixtf/image/upload/v1787212549/companies/dler1mhonskaw8jkhklo.jpg",
+    },
+    message: "test",
+    star: 5,
+    image:
+      "https://res.cloudinary.com/dhzd7ixtf/image/upload/v1791340390/feedbacks/iw5tj503gaafcjq5cb6u.jpg",
+    imagePublicId: "feedbacks/iw5tj503gaafcjq5cb6u",
+    createdAt: "2026-10-07T02:33:10.808Z",
+    updatedAt: "2026-10-07T02:33:10.808Z",
+    __v: 0,
+  },
+];
+
 function Index() {
   const { t, i18n } = useTranslation();
   const isKhmer = i18n.language?.startsWith("km");
@@ -110,67 +160,10 @@ function Index() {
   const [date, setDate] = useState(today);
 
   const [schedules, setSchedules] = useState<IScheduleLandingItem[]>([]);
+  const [feedbacks, setFeedbacks] = useState<IFeedbackLandingItem[]>([]);
   const [rawGeos, setRawGeos] = useState<any[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
-
-  const features = [
-    {
-      icon: Shield,
-      title: t("whyChoose.safeTitle"),
-      desc: t("whyChoose.safeDesc"),
-      badge: t("whyChoose.safeBadge"),
-    },
-    {
-      icon: Wallet,
-      title: t("whyChoose.priceTitle"),
-      desc: t("whyChoose.priceDesc"),
-      badge: t("whyChoose.priceBadge"),
-    },
-    {
-      icon: Zap,
-      title: t("whyChoose.instantTitle"),
-      desc: t("whyChoose.instantDesc"),
-      badge: t("whyChoose.instantBadge"),
-    },
-    {
-      icon: Clock,
-      title: t("whyChoose.supportTitle"),
-      desc: t("whyChoose.supportDesc"),
-      badge: t("whyChoose.supportBadge"),
-    },
-  ];
-
-  const stats = [
-    { value: "500K+", label: t("stats.happyTravelers"), icon: Users },
-    { value: "120+", label: t("stats.dailyDepartures"), icon: TrendingUp },
-    { value: "25+", label: t("stats.provincialRoutes"), icon: Compass },
-    { value: "99.8%", label: t("stats.onTimeRate"), icon: Award },
-  ];
-
-  const reviews = [
-    {
-      name: t("reviews.r1.name"),
-      role: t("reviews.r1.role"),
-      text: t("reviews.r1.text"),
-      rating: 5,
-      city: t("reviews.r1.city"),
-    },
-    {
-      name: t("reviews.r2.name"),
-      role: t("reviews.r2.role"),
-      text: t("reviews.r2.text"),
-      rating: 5,
-      city: t("reviews.r2.city"),
-    },
-    {
-      name: t("reviews.r3.name"),
-      role: t("reviews.r3.role"),
-      text: t("reviews.r3.text"),
-      rating: 5,
-      city: t("reviews.r3.city"),
-    },
-  ];
 
   useEffect(() => {
     const handleScroll = () => {
@@ -266,6 +259,63 @@ function Index() {
       });
   }, []);
 
+  useEffect(() => {
+    apiClient
+      .get("/api/feedbacks/landing")
+      .then((res) => {
+        const list = Array.isArray(res.data?.list)
+          ? res.data.list
+          : Array.isArray(res.data)
+            ? res.data
+            : [];
+        if (list.length > 0) {
+          setFeedbacks(list);
+        } else {
+          setFeedbacks(fallbackFeedbacks);
+        }
+        setTimeout(() => AOS.refresh(), 100);
+      })
+      .catch((err) => {
+        console.error("Failed to load landing feedbacks:", err);
+        setFeedbacks(fallbackFeedbacks);
+        setTimeout(() => AOS.refresh(), 100);
+      });
+  }, []);
+
+  const features = [
+    {
+      icon: Shield,
+      title: t("whyChoose.safeTitle"),
+      desc: t("whyChoose.safeDesc"),
+      badge: t("whyChoose.safeBadge"),
+    },
+    {
+      icon: Wallet,
+      title: t("whyChoose.priceTitle"),
+      desc: t("whyChoose.priceDesc"),
+      badge: t("whyChoose.priceBadge"),
+    },
+    {
+      icon: Zap,
+      title: t("whyChoose.instantTitle"),
+      desc: t("whyChoose.instantDesc"),
+      badge: t("whyChoose.instantBadge"),
+    },
+    {
+      icon: Clock,
+      title: t("whyChoose.supportTitle"),
+      desc: t("whyChoose.supportDesc"),
+      badge: t("whyChoose.supportBadge"),
+    },
+  ];
+
+  const stats = [
+    { value: "500K+", label: t("stats.happyTravelers"), icon: Users },
+    { value: "120+", label: t("stats.dailyDepartures"), icon: TrendingUp },
+    { value: "25+", label: t("stats.provincialRoutes"), icon: Compass },
+    { value: "99.8%", label: t("stats.onTimeRate"), icon: Award },
+  ];
+
   const [tripType, setTripType] = useState<"oneway" | "roundtrip">("oneway");
   const [returnDate, setReturnDate] = useState("");
 
@@ -291,6 +341,26 @@ function Index() {
 
   const displaySchedules =
     schedules.length > 0 ? schedules : (fallbackSchedules as any);
+
+  const displayFeedbacks = (
+    feedbacks.length > 0 ? feedbacks : fallbackFeedbacks
+  ).slice(0, 3);
+
+  const getFeedbackUserName = (fb: IFeedbackLandingItem) => {
+    if (typeof fb.user === "object" && fb.user) {
+      return (
+        fb.user.name ||
+        fb.user.username ||
+        fb.user.fullName ||
+        fb.user.email ||
+        t("reviews.anonymousUser", "Anonymous User")
+      );
+    }
+    if (typeof fb.user === "string" && fb.user.trim()) {
+      return fb.user.trim();
+    }
+    return t("reviews.anonymousUser", "Anonymous User");
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary">
@@ -770,41 +840,84 @@ function Index() {
             subtitle={t("reviews.subtitle")}
           />
         </div>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {reviews.map((r, idx) => (
-            <Card
-              key={r.name}
-              data-aos="zoom-in-up"
-              data-aos-delay={idx * 150}
-              data-aos-duration="700"
-              className="p-6 card-hover border-border/70 bg-card rounded-2xl flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex gap-1 text-amber-400">
-                    {Array.from({ length: r.rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-current" />
-                    ))}
-                  </div>
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                    {t("reviews.verifiedRider")}
-                  </span>
-                </div>
-                <p className="text-sm sm:text-base text-foreground/90 italic leading-relaxed">
-                  &ldquo;{r.text}&rdquo;
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {displayFeedbacks.map((fb, idx) => {
+            const userName = getFeedbackUserName(fb);
+            const companyName =
+              typeof fb.company === "object"
+                ? fb.company?.name
+                : typeof fb.company === "string"
+                  ? fb.company
+                  : "";
+            const companyImage =
+              typeof fb.company === "object" ? fb.company?.image : undefined;
+            const rating = Math.max(1, Math.min(5, fb.star || 5));
+
+            return (
+              <Card
+                key={fb._id || idx}
+                data-aos="fade-up"
+                data-aos-delay={(idx % 3) * 100}
+                data-aos-duration="700"
+                className="p-6 card-hover border-border/70 bg-card rounded-2xl flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+              >
                 <div>
-                  <p className="font-bold text-sm text-foreground">{r.name}</p>
-                  <p className="text-xs text-muted-foreground">{r.role}</p>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex gap-1 text-amber-400">
+                      {Array.from({ length: rating }).map((_, i) => (
+                        <Star key={i} className="h-4 w-4 fill-current" />
+                      ))}
+                    </div>
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                      {t("reviews.verifiedRider")}
+                    </span>
+                  </div>
+
+                  <p className="text-sm sm:text-base text-foreground/90 italic leading-relaxed">
+                    &ldquo;{fb.message}&rdquo;
+                  </p>
                 </div>
-                <span className="text-[11px] font-medium text-muted-foreground bg-secondary px-2.5 py-1 rounded-lg">
-                  {r.city}
-                </span>
-              </div>
-            </Card>
-          ))}
+
+                <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-primary border border-emerald-500/20 flex items-center justify-center shrink-0">
+                      <User className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-foreground truncate">
+                        {userName}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {fb.createdAt
+                          ? new Date(fb.createdAt).toLocaleDateString(
+                              isKhmer ? "km-KH" : "en-US",
+                              {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              },
+                            )
+                          : t("reviews.verifiedRider")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {companyName && (
+                    <span className="text-[11px] font-medium text-muted-foreground bg-secondary px-2.5 py-1 rounded-lg flex items-center gap-1.5 shrink-0 max-w-[140px] truncate">
+                      {companyImage && (
+                        <img
+                          src={companyImage}
+                          alt={companyName}
+                          className="h-3.5 w-3.5 rounded-full object-cover shrink-0"
+                        />
+                      )}
+                      <span className="truncate">{companyName}</span>
+                    </span>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </section>
 
